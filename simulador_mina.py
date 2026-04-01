@@ -90,6 +90,45 @@ def ejecutar_simulador():
         eventhub_name=NOMBRE_EVENT_HUB
     )
 
+    print("Iniciando transmisión MASIVA de telemetría a Event Hubs...")
+    print("Presiona Ctrl+C para detener.\n")
+
+    try:
+        with productor:
+            while True:
+                # 1. Creamos un lote vacío
+                lote_eventos = productor.create_batch()
+                eventos_en_lote = 0
+                
+                # 2. Llenamos el lote con 100 JSONs en memoria
+                for _ in range(100):
+                    datos_maquinaria = generar_telemetria()
+                    payload_json = json.dumps(datos_maquinaria)
+                    
+                    try:
+                        # Intentamos agregar el evento al lote
+                        lote_eventos.add(EventData(payload_json))
+                        eventos_en_lote += 1
+                    except ValueError:
+                        # Si el lote alcanza el límite máximo de tamaño de Event Hubs (1MB), dejamos de agregar
+                        break 
+                
+                # 3. Disparamos el volquete completo por la red de un solo golpe
+                productor.send_batch(lote_eventos)
+                print(f"[LOTE ENVIADO] {eventos_en_lote} registros de maquinaria disparados a la nube.")
+                
+                # Pausa mínima de medio segundo para no asfixiar tu internet
+                time.sleep(0.5)
+                
+    except KeyboardInterrupt:
+        print("\nSimulación detenida manualmente. Cerrando conexión...")
+    except Exception as e:
+        print(f"\nError durante la transmisión: {e}")
+    productor = EventHubProducerClient.from_connection_string(
+        conn_str=CADENA_CONEXION,
+        eventhub_name=NOMBRE_EVENT_HUB
+    )
+
     print("Iniciando transmisión segura de telemetría a Azure Event Hubs...")
     print("Presiona Ctrl+C para detener el simulador.\n")
 
